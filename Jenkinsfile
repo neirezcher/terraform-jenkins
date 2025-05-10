@@ -6,9 +6,6 @@ pipeline {
         ARM_ACCESS_TOKEN = credentials('AZURE_ACCESS_TOKEN')
         ARM_SUBSCRIPTION_ID = credentials('AZURE_SUBSCRIPTION_ID')
         ARM_TENANT_ID = credentials('AZURE_TENANT_ID')
-        
-        // SSH credentials for Ansible
-        ANSIBLE_SSH_KEY = credentials('ANSIBLE_SSH_PRIVATE_KEY')
     }
 
     stages {
@@ -73,29 +70,47 @@ pipeline {
             }
         }
 
+        stage('Verify VM Accessibility') {
+            steps {
+                script {
+                    def VM_IP = sh(script: 'cd terraform && terraform output -raw jenkins_infra_vm_public_ip', returnStdout: true).trim()
+                    
+                    // Verify port 22 is open
+                    sh """
+                    until nc -zvw3 ${VM_IP} 22; do
+                        echo "Waiting for SSH to be available..."
+                        sleep 10
+                    done
+                    """
+                }
+            }
+        }
+
         stage('Prepare Ansible') {
             steps {
                 script {
                     // Get VM IP from Terraform output
-                    VM_IP = sh(script: 'cd terraform && terraform output -raw jenkins_infra_vm_public_ip', returnStdout: true).trim()
+                    def VM_IP = sh(script: 'cd terraform && terraform output -raw jenkins_infra_vm_public_ip', returnStdout: true).trim()
                     
-                    // Create ansible directory if not exists
+                    // Create ansible directory
                     sh 'mkdir -p ansible'
                     
                     dir('ansible') {
-                        // Write SSH key
-                        writeFile file: 'id_rsa', text: "${env.ANSIBLE_SSH_KEY}"
-                        sh 'chmod 600 id_rsa'
+                        // Securely write SSH key
+                        withCredentials([sshUserPrivateKey(credentialsId: 'ANSIBLE_SSH_PRIVATE_KEY', keyFileVariable: 'SSH_KEY_FILE')]) {
+                            sh """
+                            cp ${SSH_KEY_FILE} id_rsa
+                            chmod 600 id_rsa
+                            """
+                        }
                         
                         // Create inventory file
-                        sh """
-                        cat > inventory.ini <<EOL
+                        writeFile file: 'inventory.ini', text: """
                         [jenkins_servers]
-                        jenkins_infra_vm ansible_host=${VM_IP} \\
-                                        ansible_user=jenkinsadmin \\
-                                        ansible_ssh_private_key_file=\${WORKSPACE}/ansible/id_rsa \\
+                        jenkins_infra_vm ansible_host=${VM_IP}
+                                        ansible_user=jenkinsadmin
+                                        ansible_ssh_private_key_file=${WORKSPACE}/ansible/id_rsa
                                         ansible_python_interpreter=/usr/bin/python3
-                        EOL
                         """
                     }
                 }
@@ -106,8 +121,8 @@ pipeline {
             steps {
                 dir('ansible') {
                     sh '''
-                    ansible-playbook -i inventory.ini playbook.yml \
-                        --ssh-common-args="-o StrictHostKeyChecking=no"
+                    ansible-playbook -i inventory.ini playbook.yml -vvv \
+                        --ssh-common-args="-o StrictHostKeyChecking=no -o ConnectTimeout=30"
                     '''
                 }
             }
