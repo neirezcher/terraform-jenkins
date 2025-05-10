@@ -33,7 +33,7 @@ pipeline {
 
         stage('Terraform Plan') {
             steps {
-                dir('terraform') {
+                dir('./terraform') {
                     withCredentials([
                         string(credentialsId: 'AZURE_ACCESS_TOKEN', variable: 'ARM_ACCESS_TOKEN'),
                         string(credentialsId: 'AZURE_SUBSCRIPTION_ID', variable: 'ARM_SUBSCRIPTION_ID'),
@@ -47,7 +47,7 @@ pipeline {
                             -var="tenant=$ARM_TENANT_ID" \
                             -out=tfplan
                         '''
-                        archiveArtifacts artifacts: 'tfplan', onlyIfSuccessful: true
+                        archiveArtifacts artifacts: 'tfplan'
                     }
                 }
             }
@@ -75,33 +75,36 @@ pipeline {
 
         stage('Prepare Ansible') {
             steps {
-                dir('./ansible') {
-                    // Write the SSH private key to a file
-                    writeFile file: 'id_rsa', text: "${env.ANSIBLE_SSH_KEY}"
-                    sh 'chmod 600 id_rsa'
+                script {
+                    // Get VM IP from Terraform output
+                    VM_IP = sh(script: 'cd terraform && terraform output -raw jenkins_infra_vm_public_ip', returnStdout: true).trim()
                     
-                    // Generate dynamic inventory from Terraform output
-                    sh '''
-                    cat > inventory.ini <<EOL
-                    [jenkins_servers]
-                    jenkins_infra_vm ansible_host=$(terraform -chdir=../terraform output -raw jenkins_infra_vm_public_ip) \
-                                    ansible_user=jenkinsadmin \
-                                    ansible_ssh_private_key_file=${WORKSPACE}/ansible/id_rsa
-
-                    [all:vars]
-                    ansible_python_interpreter=/usr/bin/python3
-                    EOL
-                    '''
+                    // Create ansible directory if not exists
+                    sh 'mkdir -p ansible'
                     
-                    // Verify inventory file
-                    sh 'cat inventory.ini'
+                    dir('ansible') {
+                        // Write SSH key
+                        writeFile file: 'id_rsa', text: "${env.ANSIBLE_SSH_KEY}"
+                        sh 'chmod 600 id_rsa'
+                        
+                        // Create inventory file
+                        sh """
+                        cat > inventory.ini <<EOL
+                        [jenkins_servers]
+                        jenkins_infra_vm ansible_host=${VM_IP} \\
+                                        ansible_user=jenkinsadmin \\
+                                        ansible_ssh_private_key_file=\${WORKSPACE}/ansible/id_rsa \\
+                                        ansible_python_interpreter=/usr/bin/python3
+                        EOL
+                        """
+                    }
                 }
             }
         }
 
         stage('Ansible Deployment') {
             steps {
-                dir('./ansible') {
+                dir('ansible') {
                     sh '''
                     ansible-playbook -i inventory.ini playbook.yml \
                         --ssh-common-args="-o StrictHostKeyChecking=no"
@@ -114,18 +117,26 @@ pipeline {
     post {
         always {
             // Clean up sensitive files
-            dir('./ansible') {
-                sh 'rm -f id_rsa inventory.ini || true'
-            }
+            sh 'rm -f ansible/id_rsa ansible/inventory.ini || true'
             cleanWs()
         }
         success {
-            slackSend color: 'good', 
-                message: "Déploiement complet réussi - ${env.JOB_NAME} (Terraform + Ansible)"
+            withCredentials([string(credentialsId: 'SLACK_TOKEN', variable: 'SLACK_TOKEN')]) {
+                slackSend (
+                    color: 'good',
+                    message: "Déploiement réussi - ${env.JOB_NAME}",
+                    tokenCredentialId: 'SLACK_TOKEN'
+                )
+            }
         }
         failure {
-            slackSend color: 'danger', 
-                message: "Échec du déploiement - ${env.JOB_NAME}"
+            withCredentials([string(credentialsId: 'SLACK_TOKEN', variable: 'SLACK_TOKEN')]) {
+                slackSend (
+                    color: 'danger',
+                    message: "Échec du déploiement - ${env.JOB_NAME}",
+                    tokenCredentialId: 'SLACK_TOKEN'
+                )
+            }
         }
     }
 }
