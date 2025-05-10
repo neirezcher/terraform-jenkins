@@ -27,17 +27,26 @@ pipeline {
                 }
             }
         }
-
         stage('Terraform Plan') {
-            steps {
-                dir('./terraform') {
-                    sh '''
-                    export ARM_USE_OIDC=true
-                    terraform plan -out=tfplan
-                    '''
-                    archiveArtifacts artifacts: 'tfplan', onlyIfSuccessful: true
-                }
+        steps {
+            dir('terraform') {
+            withCredentials([
+                string(credentialsId: 'ARM_ACCESS_TOKEN', variable: 'ARM_ACCESS_TOKEN'),
+                string(credentialsId: 'ARM_SUBSCRIPTION_ID', variable: 'ARM_SUBSCRIPTION_ID'),
+                string(credentialsId: 'ARM_TENANT_ID', variable: 'ARM_TENANT_ID')
+            ]) {
+                sh '''
+                export ARM_USE_OIDC=true
+                terraform plan \
+                    -var="accessToken=$ARM_ACCESS_TOKEN" \
+                    -var="subscription=$ARM_SUBSCRIPTION_ID" \
+                    -var="tenant=$ARM_TENANT_ID" \
+                    -out=tfplan
+                '''
+                archiveArtifacts artifacts: 'tfplan', onlyIfSuccessful: true
             }
+            }
+        }
         }
 
         stage('Approval') {
