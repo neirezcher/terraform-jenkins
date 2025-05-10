@@ -1,0 +1,52 @@
+# Fichiers Terraform
+**/.terraform/*
+**/.terraform.lock.hcl
+**/*.tfstate
+**/*.tfstate.*
+**/tfplan
+**/.terraform.tfstate.lock.info
+**/override.tf
+**/override.tf.json
+**/.terraformrc
+terraform.tfvars
+*.auto.tfvars
+**/crash.log
+
+# Fichiers Jenkins
+**/.jenkins/*
+**/workspace/*
+**/builds/*
+**/plugins/*
+**/logs/*
+
+# Fichiers d'environnement et secrets
+**/.env
+**/*.secret
+**/*.key
+**/azure-creds.json
+**/variables.auto.tfvars
+
+# Fichiers systèmes et IDE
+**/.DS_Store
+**/.idea/
+**/*.swp
+**/.vscode/
+**/*.iml
+
+# Fichiers temporaires
+**/*.tmp
+**/*.log
+**/.terraform-provider-cache/
+
+# Fichiers de backup
+**/*.bak
+**/*.backup
+
+# Fichiers spécifiques aux providers
+**/.terraform.d/
+**/terraform.d/
+**/.terraform.lock.hcl
+
+# Fichiers de plan Terraform
+**/*.tfplan
+**/plan.out
