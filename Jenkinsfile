@@ -12,7 +12,7 @@ pipeline {
         stage('Checkout') {
             steps {
                 git branch: 'main', 
-                url: 'https://github.com/votre-repo/terraform-config.git'
+                url: 'https://github.com/neirezcher/terraform-jenkins.git'
             }
         }
 
