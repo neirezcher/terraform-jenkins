@@ -15,59 +15,59 @@ provider "azurerm" {
 }
 
 # Create a resource group
-resource "azurerm_resource_group" "TP4_devops_rg" {
+resource "azurerm_resource_group" "TP4_devops_jenkins_terraform_rg" {
   name     = "TP4-devops-resources"
   location = "France Central"
 }
 
 # Create a virtual network
-resource "azurerm_virtual_network" "TP4_devops_vnet" {
+resource "azurerm_virtual_network" "TP4_devops_jenkins_terraform_vnet" {
   name                = "TP4-devops-network"
   address_space       = ["10.0.0.0/16"]
-  location            = azurerm_resource_group.TP4_devops_rg.location
-  resource_group_name = azurerm_resource_group.TP4_devops_rg.name
+  location            = azurerm_resource_group.TP4_devops_jenkins_terraform_rg.location
+  resource_group_name = azurerm_resource_group.TP4_devops_jenkins_terraform_rg.name
 }
 
 # Create a subnet
-resource "azurerm_subnet" "TP4_devops_subnet" {
+resource "azurerm_subnet" "TP4_devops_jenkins_terraform_subnet" {
   name                 = "TP4-devops-internal"
-  resource_group_name  = azurerm_resource_group.TP4_devops_rg.name
-  virtual_network_name = azurerm_virtual_network.TP4_devops_vnet.name
+  resource_group_name  = azurerm_resource_group.TP4_devops_jenkins_terraform_rg.name
+  virtual_network_name = azurerm_virtual_network.TP4_devops_jenkins_terraform_vnet.name
   address_prefixes     = ["10.0.2.0/24"]
 }
 
 # Create a public IP with Standard SKU and static allocation
-resource "azurerm_public_ip" "TP4_devops_pip" {
+resource "azurerm_public_ip" "TP4_devops_jenkins_terraform__pip" {
   name                = "TP4-devops-ip"
-  location            = azurerm_resource_group.TP4_devops_rg.location
-  resource_group_name = azurerm_resource_group.TP4_devops_rg.name
+  location            = azurerm_resource_group.TP4_devops_jenkins_terraform_rg.location
+  resource_group_name = azurerm_resource_group.TP4_devops_jenkins_terraform__rg.name
   allocation_method   = "Static"
   sku                 = "Standard"
 }
 
 # Create a network interface
-resource "azurerm_network_interface" "TP4_devops_nic" {
+resource "azurerm_network_interface" "TP4_devops_jenkins_terraform__nic" {
   name                = "TP4-devops-nic"
-  location            = azurerm_resource_group.TP4_devops_rg.location
-  resource_group_name = azurerm_resource_group.TP4_devops_rg.name
+  location            = azurerm_resource_group.TP4_devops_jenkins_terraform_rg.location
+  resource_group_name = azurerm_resource_group.TP4_devops_jenkins_terraform_rg.name
 
   ip_configuration {
     name                          = "TP4-devops-internal"
-    subnet_id                     = azurerm_subnet.TP4_devops_subnet.id
+    subnet_id                     = azurerm_subnet.TP4_devops_jenkins_terraform_subnet.id
     private_ip_address_allocation = "Dynamic"
-    public_ip_address_id          = azurerm_public_ip.TP4_devops_pip.id
+    public_ip_address_id          = azurerm_public_ip.TP4_devops_jenkins_terraform_pip.id
   }
 }
 
 # Create the virtual machine with Ubuntu 20.04 LTS
-resource "azurerm_linux_virtual_machine" "TP4_devops_vm" {
+resource "azurerm_linux_virtual_machine" "TP4_devops_jenkins_terraform_vm" {
   name                = "TP4-devops-vm"
-  resource_group_name = azurerm_resource_group.TP4_devops_rg.name
-  location            = azurerm_resource_group.TP4_devops_rg.location
+  resource_group_name = azurerm_resource_group.TP4_devops_jenkins_terraform_rg.name
+  location            = azurerm_resource_group.TP4_devops_jenkins_terraform_rg.location
   size                = "Standard_B2s"
   admin_username      = "devopsadmin"
   network_interface_ids = [
-    azurerm_network_interface.TP4_devops_nic.id,
+    azurerm_network_interface.TP4_devops_jenkins_terraform_nic.id,
   ]
 
   admin_ssh_key {
@@ -95,7 +95,7 @@ resource "azurerm_linux_virtual_machine" "TP4_devops_vm" {
 }
 
 # Output the public IP address
-output "TP4_devops_vm_public_ip" {
-  value = azurerm_public_ip.TP4_devops_pip.ip_address
+output "TP4_devops_jenkins_terraform_vm_public_ip" {
+  value = azurerm_public_ip.TP4_devops_jenkins_terraform_pip.ip_address
   description = "Public IP address of the TP4_devops VM"
 }
