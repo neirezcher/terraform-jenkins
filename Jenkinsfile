@@ -115,11 +115,13 @@ pipeline {
                         writeFile file: 'inventory.ini', text: """
                         [jenkins_servers]
                         jenkins_infra_vm ansible_host=${VM_IP}
-                                        ansible_user=jenkinsadmin
+                                        ansible_user=root
                                         ansible_ssh_private_key_file=${WORKSPACE}/ansible/id_rsa
                                         ansible_python_interpreter=/usr/bin/python3
                         """
                         echo "Ansible inventory file created"
+                        // Verify inventory file
+                        sh 'cat inventory.ini'
                     }
                 }
             }

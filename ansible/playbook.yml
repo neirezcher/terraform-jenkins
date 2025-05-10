@@ -24,6 +24,14 @@
         - curl
         - software-properties-common
         - python3-pip
+        
+    - name: Ensure Python is available
+      raw: test -e /usr/bin/python || (apt -y update && apt install -y python3)
+      changed_when: false
+      register: output
+      until: output.rc == 0
+      retries: 3
+      delay: 5
 
     - name: Add Docker GPG apt Key
       apt_key:
