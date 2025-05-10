@@ -24,7 +24,8 @@
         - curl
         - software-properties-common
         - python3-pip
-        
+        - docker-ce
+
     - name: Ensure Python is available
       raw: test -e /usr/bin/python || (apt -y update && apt install -y python3)
       changed_when: false
