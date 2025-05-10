@@ -96,31 +96,22 @@ pipeline {
 
         stage('Prepare Ansible') {
             steps {
-                echo "Preparing Ansible environment..."
                 script {
                     def VM_IP = sh(script: 'cd terraform && terraform output -raw jenkins_infra_vm_public_ip', returnStdout: true).trim()
-                    echo "Using VM IP: ${VM_IP}"
-                    
-                    sh 'mkdir -p ansible'
                     
                     dir('ansible') {
-                        withCredentials([sshUserPrivateKey(credentialsId: 'ANSIBLE_SSH_PRIVATE_KEY', keyFileVariable: 'SSH_KEY_FILE')]) {
-                            sh """
-                            echo "Setting up SSH key..."
-                            cp ${SSH_KEY_FILE} id_rsa
-                            chmod 600 id_rsa
-                            """
-                        }
-                        
+                        // Write proper inventory file
                         writeFile file: 'inventory.ini', text: """
                         [jenkins_servers]
-                        jenkins_infra_vm ansible_host=${VM_IP}
-                                        ansible_user=root
-                                        ansible_ssh_private_key_file=${WORKSPACE}/ansible/id_rsa
-                                        ansible_python_interpreter=/usr/bin/python3
+                        ${VM_IP}
+                        
+                        [jenkins_servers:vars]
+                        ansible_user=root
+                        ansible_ssh_private_key_file=${WORKSPACE}/ansible/id_rsa
+                        ansible_python_interpreter=/usr/bin/python3
                         """
-                        echo "Ansible inventory file created"
-                        // Verify inventory file
+                        
+                        // Verify inventory
                         sh 'cat inventory.ini'
                     }
                 }
@@ -129,13 +120,15 @@ pipeline {
 
         stage('Ansible Deployment') {
             steps {
-                echo "Running Ansible playbook..."
                 dir('ansible') {
                     sh '''
-                    echo "Starting Ansible deployment..."
+                    echo "Testing SSH connection first..."
+                    ssh -o StrictHostKeyChecking=no -i id_rsa root@$(cat inventory.ini | grep -v '^\[' | head -1) 'echo SSH successful'
+                    
+                    echo "Running Ansible playbook..."
                     ansible-playbook -i inventory.ini playbook.yml -vvv \
-                        --ssh-common-args="-o StrictHostKeyChecking=no -o ConnectTimeout=30"
-                    echo "Ansible deployment completed!"
+                        --private-key=id_rsa \
+                        -e "ansible_ssh_common_args='-o StrictHostKeyChecking=no -o ConnectTimeout=30'"
                     '''
                 }
             }

@@ -1,72 +1,70 @@
 ---
-- name: Configure Jenkins Infrastructure VM
+- name: Configure Jenkins VM
   hosts: jenkins_servers
-  become: yes
-
-  vars:
-    docker_image: "neirezcher/spring-petclinic"
-    container_name: "spring-petclinic"
-    http_port: "8080"
+  gather_facts: false  # Disable initially to test connection
 
   tasks:
-    - name: Update apt package index
-      apt:
-        update_cache: yes
-        cache_valid_time: 3600
-
-    - name: Install required system packages
-      apt:
-        name: "{{ item }}"
-        state: present
-      loop:
-        - apt-transport-https
-        - ca-certificates
-        - curl
-        - software-properties-common
-        - python3-pip
-        - docker-ce
-
-    - name: Ensure Python is available
-      raw: test -e /usr/bin/python || (apt -y update && apt install -y python3)
+    - name: Test raw connection
+      raw: whoami
+      register: whoami
       changed_when: false
-      register: output
-      until: output.rc == 0
-      retries: 3
-      delay: 5
 
-    - name: Add Docker GPG apt Key
-      apt_key:
-        url: https://download.docker.com/linux/ubuntu/gpg
-        state: present
+    - name: Debug connection
+      debug:
+        var: whoami
 
-    - name: Add Docker Repository
-      apt_repository:
-        repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable
-        state: present
+    - name: Install Python (if missing)
+      raw: test -e /usr/bin/python || (apt-get update && apt-get install -y python3)
+      when: ansible_python_interpreter is not defined or ansible_python_interpreter == ''
+
+    - name: Gather facts
+      setup:
 
     - name: Install Docker
-      apt:
-        name: docker-ce
-        state: present
-        update_cache: yes
+      block:
+        - name: Install dependencies
+          apt:
+            name:
+              - apt-transport-https
+              - ca-certificates
+              - curl
+              - software-properties-common
+              - python3-pip
+            state: present
+            update_cache: yes
 
-    - name: Add user to docker group
-      user:
-        name: "{{ ansible_user }}"
-        groups: docker
-        append: yes
+        - name: Add Docker GPG key
+          apt_key:
+            url: https://download.docker.com/linux/ubuntu/gpg
+            state: present
 
-    - name: Pull Docker image
-      docker_image:
-        name: "{{ docker_image }}"
-        source: pull
-        force_source: no
+        - name: Add Docker repository
+          apt_repository:
+            repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable
+            state: present
 
-    - name: Run Docker container
-      docker_container:
-        name: "{{ container_name }}"
-        image: "{{ docker_image }}"
+        - name: Install Docker
+          apt:
+            name: docker-ce
+            state: present
+
+      when: ansible_facts is defined
+
+    - name: Start Docker service
+      systemd:
+        name: docker
         state: started
-        restart: yes
+        enabled: yes
+
+    - name: Pull application image
+      docker_image:
+        name: neirezcher/spring-petclinic
+        source: pull
+
+    - name: Run container
+      docker_container:
+        name: spring-petclinic
+        image: neirezcher/spring-petclinic
+        state: started
         ports:
-          - "{{ http_port }}:8080"
+          - "8080:8080"
