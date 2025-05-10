@@ -31,9 +31,9 @@ pipeline {
         steps {
             dir('terraform') {
             withCredentials([
-                string(credentialsId: 'ARM_ACCESS_TOKEN', variable: 'ARM_ACCESS_TOKEN'),
-                string(credentialsId: 'ARM_SUBSCRIPTION_ID', variable: 'ARM_SUBSCRIPTION_ID'),
-                string(credentialsId: 'ARM_TENANT_ID', variable: 'ARM_TENANT_ID')
+                string(credentialsId: 'AZURE_ACCESS_TOKEN', variable: 'ARM_ACCESS_TOKEN'),
+                string(credentialsId: 'AZURE_SUBSCRIPTION_ID', variable: 'ARM_SUBSCRIPTION_ID'),
+                string(credentialsId: 'AZURE_TENANT_ID', variable: 'ARM_TENANT_ID')
             ]) {
                 sh '''
                 export ARM_USE_OIDC=true
