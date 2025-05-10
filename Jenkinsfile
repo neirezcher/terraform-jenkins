@@ -123,7 +123,7 @@ pipeline {
                 dir('ansible') {
                     sh '''
                     echo "Testing SSH connection first..."
-                    ssh -o StrictHostKeyChecking=no -i id_rsa root@$(cat inventory.ini | grep -v '^\[' | head -1) 'echo SSH successful'
+                    ssh -o StrictHostKeyChecking=no -i id_rsa root@$(cat inventory.ini | grep -v '^\\[' | head -1) 'echo SSH successful'
                     
                     echo "Running Ansible playbook..."
                     ansible-playbook -i inventory.ini playbook.yml -vvv \
