@@ -4,74 +4,69 @@ provider "azurerm" {
 
   subscription_id = var.subscription
   tenant_id       = var.tenant
-  #since we are using student account we do not have all permissions 
   resource_provider_registrations = "none"
-
-  # This is an alternative authentication method using an access token
-  # Note: Using access tokens directly is not recommended for production
-  # as they are short-lived. Consider using service principals instead.
   use_oidc         = true
   oidc_token       = var.accessToken
 }
 
 # Create a resource group
-resource "azurerm_resource_group" "TP4_devops_jenkins_terraform_rg" {
-  name     = "TP4-devops-resources"
+resource "azurerm_resource_group" "jenkins_infra_rg" {
+  name     = "jenkins-infra-resources"
   location = "France Central"
 }
 
 # Create a virtual network
-resource "azurerm_virtual_network" "TP4_devops_jenkins_terraform_vnet" {
-  name                = "TP4-devops-network"
-  address_space       = ["10.0.0.0/16"]
-  location            = azurerm_resource_group.TP4_devops_jenkins_terraform_rg.location
-  resource_group_name = azurerm_resource_group.TP4_devops_jenkins_terraform_rg.name
+resource "azurerm_virtual_network" "jenkins_infra_vnet" {
+  name                = "jenkins-infra-network"
+  address_space       = ["10.1.0.0/16"]  # Changed address space
+  location            = azurerm_resource_group.jenkins_infra_rg.location
+  resource_group_name = azurerm_resource_group.jenkins_infra_rg.name
 }
 
 # Create a subnet
-resource "azurerm_subnet" "TP4_devops_jenkins_terraform_subnet" {
-  name                 = "TP4-devops-internal"
-  resource_group_name  = azurerm_resource_group.TP4_devops_jenkins_terraform_rg.name
-  virtual_network_name = azurerm_virtual_network.TP4_devops_jenkins_terraform_vnet.name
-  address_prefixes     = ["10.0.2.0/24"]
+resource "azurerm_subnet" "jenkins_infra_subnet" {
+  name                 = "jenkins-infra-internal"
+  resource_group_name  = azurerm_resource_group.jenkins_infra_rg.name
+  virtual_network_name = azurerm_virtual_network.jenkins_infra_vnet.name
+  address_prefixes     = ["10.1.1.0/24"]  # Changed subnet range
 }
 
-# Create a public IP with Standard SKU and static allocation
-resource "azurerm_public_ip" "TP4_devops_jenkins_terraform__pip" {
-  name                = "TP4-devops-ip"
-  location            = azurerm_resource_group.TP4_devops_jenkins_terraform_rg.location
-  resource_group_name = azurerm_resource_group.TP4_devops_jenkins_terraform__rg.name
+# Create a public IP
+resource "azurerm_public_ip" "jenkins_infra_pip" {
+  name                = "jenkins-infra-ip"
+  location            = azurerm_resource_group.jenkins_infra_rg.location
+  resource_group_name = azurerm_resource_group.jenkins_infra_rg.name
   allocation_method   = "Static"
   sku                 = "Standard"
 }
 
 # Create a network interface
-resource "azurerm_network_interface" "TP4_devops_jenkins_terraform__nic" {
-  name                = "TP4-devops-nic"
-  location            = azurerm_resource_group.TP4_devops_jenkins_terraform_rg.location
-  resource_group_name = azurerm_resource_group.TP4_devops_jenkins_terraform_rg.name
+resource "azurerm_network_interface" "jenkins_infra_nic" {
+  name                = "jenkins-infra-nic"
+  location            = azurerm_resource_group.jenkins_infra_rg.location
+  resource_group_name = azurerm_resource_group.jenkins_infra_rg.name
 
   ip_configuration {
-    name                          = "TP4-devops-internal"
-    subnet_id                     = azurerm_subnet.TP4_devops_jenkins_terraform_subnet.id
+    name                          = "jenkins-infra-internal"
+    subnet_id                     = azurerm_subnet.jenkins_infra_subnet.id
     private_ip_address_allocation = "Dynamic"
-    public_ip_address_id          = azurerm_public_ip.TP4_devops_jenkins_terraform_pip.id
+    public_ip_address_id          = azurerm_public_ip.jenkins_infra_pip.id
   }
 }
 
-# Create the virtual machine with Ubuntu 20.04 LTS
-resource "azurerm_linux_virtual_machine" "TP4_devops_jenkins_terraform_vm" {
-  name                = "TP4-devops-vm"
-  resource_group_name = azurerm_resource_group.TP4_devops_jenkins_terraform_rg.name
-  location            = azurerm_resource_group.TP4_devops_jenkins_terraform_rg.location
+# Create the virtual machine
+resource "azurerm_linux_virtual_machine" "jenkins_infra_vm" {
+  name                = "jenkins-infra-vm"
+  resource_group_name = azurerm_resource_group.jenkins_infra_rg.name
+  location            = azurerm_resource_group.jenkins_infra_rg.location
   size                = "Standard_B2s"
-  admin_username      = "devopsadmin"
+  admin_username      = "jenkinsadmin"
   network_interface_ids = [
-    azurerm_network_interface.TP4_devops_jenkins_terraform_nic.id,
+    azurerm_network_interface.jenkins_infra_nic.id,
   ]
 
   admin_ssh_key {
-    username   = "devopsadmin"
+    username   = "jenkinsadmin"
     public_key = file("~/.ssh/id_rsa.pub")
   }
 
@@ -88,14 +83,14 @@ resource "azurerm_linux_virtual_machine" "TP4_devops_jenkins_terraform_vm" {
   }
 
   tags = {
-    environment = "dev"
-    project     = "TP4_devops"
+    environment = "prod"
+    project     = "jenkins_infra"
     os          = "ubuntu-20.04"
   }
 }
 
 # Output the public IP address
-output "TP4_devops_jenkins_terraform_vm_public_ip" {
-  value = azurerm_public_ip.TP4_devops_jenkins_terraform_pip.ip_address
-  description = "Public IP address of the TP4_devops VM"
+output "jenkins_infra_vm_public_ip" {
+  value = azurerm_public_ip.jenkins_infra_pip.ip_address
+  description = "Public IP address of the Jenkins Infrastructure VM"
 }
