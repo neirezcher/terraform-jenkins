@@ -95,14 +95,23 @@ pipeline {
                     keyFileVariable: 'SSH_KEY'
                 )]) {
                     sh """
-                    echo "Testing SSH connection to ${env.VM_IP}..."
-                    ssh -o StrictHostKeyChecking=no -i $SSH_KEY root@${env.VM_IP} 'echo SSH successful'
+                    # Test jenkinsadmin access
+                    ssh -o StrictHostKeyChecking=no -i $SSH_KEY jenkinsadmin@${env.VM_IP} 'sudo whoami' || {
+                        echo "ERROR: Failed to access VM as jenkinsadmin"
+                        echo "Verify:"
+                        echo "1. jenkinsadmin exists on VM"
+                        echo "2. Key is in /home/jenkinsadmin/.ssh/authorized_keys"
+                        echo "3. jenkinsadmin has sudo privileges"
+                        exit 1
+                    }
                     
-                    echo "Running Ansible..."
-                    ansible-playbook -i '${env.VM_IP},' ansible/playbook.yml -vvv \\
+                    # Run Ansible
+                    ansible-playbook -i '${env.VM_IP},' playbook.yml -vvv \\
                         --private-key=$SSH_KEY \\
-                        --user=root \\
-                        -e "ansible_ssh_common_args='-o StrictHostKeyChecking=no -o ConnectTimeout=30'"
+                        --user=jenkinsadmin \\
+                        --become \\
+                        -e "ansible_become_pass=''" \\
+                        -e "ansible_ssh_common_args='-o StrictHostKeyChecking=no'"
                     """
                 }
             }
