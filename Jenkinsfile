@@ -75,61 +75,35 @@ pipeline {
             }
         }
 
-        stage('Verify VM Accessibility') {
+       stage('Get VM IP') {
             steps {
-                echo "Verifying VM accessibility..."
                 script {
-                    def VM_IP = sh(script: 'cd terraform && terraform output -raw jenkins_infra_vm_public_ip', returnStdout: true).trim()
-                    echo "VM Public IP: ${VM_IP}"
-                    
+                    // Store IP in environment variable
+                    env.VM_IP = sh(
+                        script: 'cd terraform && terraform output -raw jenkins_infra_vm_public_ip', 
+                        returnStdout: true
+                    ).trim()
+                    echo "VM IP: ${env.VM_IP}"
+                }
+            }
+        }
+
+        stage('Run Ansible') {
+            steps {
+                withCredentials([sshUserPrivateKey(
+                    credentialsId: 'ANSIBLE_SSH_PRIVATE_KEY',
+                    keyFileVariable: 'SSH_KEY'
+                )]) {
                     sh """
-                    echo "Testing SSH connection..."
-                    until nc -zvw3 ${VM_IP} 22; do
-                        echo "Waiting for SSH to be available..."
-                        sleep 10
-                    done
-                    echo "SSH connection successful!"
-                    """
-                }
-            }
-        }
-
-        stage('Prepare Ansible') {
-            steps {
-                script {
-                    def VM_IP = sh(script: 'cd terraform && terraform output -raw jenkins_infra_vm_public_ip', returnStdout: true).trim()
+                    echo "Testing SSH connection to ${env.VM_IP}..."
+                    ssh -o StrictHostKeyChecking=no -i $SSH_KEY root@${env.VM_IP} 'echo SSH successful'
                     
-                    dir('ansible') {
-                        // Write proper inventory file
-                        writeFile file: 'inventory.ini', text: """
-                        [jenkins_servers]
-                        ${VM_IP}
-                        
-                        [jenkins_servers:vars]
-                        ansible_user=root
-                        ansible_ssh_private_key_file=${WORKSPACE}/ansible/id_rsa
-                        ansible_python_interpreter=/usr/bin/python3
-                        """
-                        
-                        // Verify inventory
-                        sh 'cat inventory.ini'
-                    }
-                }
-            }
-        }
-
-        stage('Ansible Deployment') {
-            steps {
-                dir('ansible') {
-                    sh '''
-                    echo "Testing SSH connection first..."
-                    ssh -o StrictHostKeyChecking=no -i id_rsa root@$(cat inventory.ini | grep -v '^\\[' | head -1) 'echo SSH successful'
-                    
-                    echo "Running Ansible playbook..."
-                    ansible-playbook -i inventory.ini playbook.yml -vvv \
-                        --private-key=id_rsa \
+                    echo "Running Ansible..."
+                    ansible-playbook -i '${env.VM_IP},' ansible/playbook.yml -vvv \\
+                        --private-key=$SSH_KEY \\
+                        --user=root \\
                         -e "ansible_ssh_common_args='-o StrictHostKeyChecking=no -o ConnectTimeout=30'"
-                    '''
+                    """
                 }
             }
         }
@@ -138,7 +112,6 @@ pipeline {
     post {
         always {
             echo "Cleaning up workspace..."
-            sh 'rm -f ansible/id_rsa ansible/inventory.ini || true'
             cleanWs()
         }
         success {
