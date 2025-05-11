@@ -1,6 +1,6 @@
 ---
 - name: Configure Jenkins VM
-  hosts: jenkins_servers
+  hosts: all
   gather_facts: false  # Disable initially to test connection
 
   tasks:
