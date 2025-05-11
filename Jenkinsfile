@@ -90,29 +90,34 @@ pipeline {
 
         stage('Run Ansible') {
             steps {
-                withCredentials([sshUserPrivateKey(
-                    credentialsId: 'ANSIBLE_SSH_PRIVATE_KEY',
-                    keyFileVariable: 'SSH_KEY'
-                )]) {
-                    sh """
-                    # Test jenkinsadmin access
-                    ssh -o StrictHostKeyChecking=no -i $SSH_KEY jenkinsadmin@${env.VM_IP} 'sudo whoami' || {
-                        echo "ERROR: Failed to access VM as jenkinsadmin"
-                        echo "Verify:"
-                        echo "1. jenkinsadmin exists on VM"
-                        echo "2. Key is in /home/jenkinsadmin/.ssh/authorized_keys"
-                        echo "3. jenkinsadmin has sudo privileges"
-                        exit 1
+                dir('ansible') {  // Critical: Change to ansible directory first
+                    withCredentials([sshUserPrivateKey(
+                        credentialsId: 'ANSIBLE_SSH_PRIVATE_KEY',
+                        keyFileVariable: 'SSH_KEY'
+                    )]) {
+                        sh """
+                        # Verify playbook exists
+                        if [ ! -f playbook.yml ]; then
+                            echo "ERROR: playbook.yml not found in \$(pwd)"
+                            ls -l
+                            exit 1
+                        fi
+                        
+                        # Test connection
+                        ssh -o StrictHostKeyChecking=no -i $SSH_KEY jenkinsadmin@${env.VM_IP} 'sudo whoami' || {
+                            echo "ERROR: SSH failed"
+                            exit 1
+                        }
+                        
+                        # Run Ansible with full path
+                        ansible-playbook -i '${env.VM_IP},' \$(pwd)/playbook.yml -vvv \\
+                            --private-key=$SSH_KEY \\
+                            --user=jenkinsadmin \\
+                            --become \\
+                            -e "ansible_become_pass=''" \\
+                            -e "ansible_ssh_common_args='-o StrictHostKeyChecking=no -o ConnectTimeout=30'"
+                        """
                     }
-                    
-                    # Run Ansible
-                    ansible-playbook -i '${env.VM_IP},' playbook.yml -vvv \\
-                        --private-key=$SSH_KEY \\
-                        --user=jenkinsadmin \\
-                        --become \\
-                        -e "ansible_become_pass=''" \\
-                        -e "ansible_ssh_common_args='-o StrictHostKeyChecking=no'"
-                    """
                 }
             }
         }
